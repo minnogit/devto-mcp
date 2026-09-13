@@ -9,11 +9,24 @@ mcp = FastMCP("Dev.to MCP Server")
 BASE_URL = "https://dev.to/api"
 
 # Helper functions
+def auth_headers() -> dict:
+    """Headers for endpoints that require the Dev.to API key (private/own-account data, writes)"""
+    return {"Content-Type": "application/json", "api-key": os.getenv("DEV_TO_API_KEY", "")}
+
 async def fetch_from_api(path: str, params: dict = None) -> dict:
-    """Helper function to fetch data from Dev.to API"""
+    """Helper function to fetch data from Dev.to API (public endpoints)"""
     async with httpx.AsyncClient() as client:
         url = f"{BASE_URL}{path}"
         response = await client.get(url, params=params, timeout=10.0)
+        response.raise_for_status()
+        return response.json()
+
+async def fetch_from_api_authenticated(path: str, params: dict = None) -> dict:
+    """Helper function to fetch data from Dev.to API endpoints that require the API key
+    (e.g. your own drafts, which aren't visible through the public /articles endpoints)"""
+    async with httpx.AsyncClient() as client:
+        url = f"{BASE_URL}{path}"
+        response = await client.get(url, params=params, headers=auth_headers(), timeout=10.0)
         response.raise_for_status()
         return response.json()
 
@@ -87,6 +100,21 @@ async def get_articles_by_username(username: str) -> str:
     return format_articles(articles[:10])
 
 @mcp.tool()
+async def get_my_articles(state: str = "published") -> str:
+    """
+    Get your own Dev.to articles, including drafts (which the public /articles
+    endpoints never return). Requires DEV_TO_API_KEY to be set.
+
+    Args:
+        state: One of "published", "unpublished" (drafts), or "all" (default: "published")
+    """
+    if state not in ("published", "unpublished", "all"):
+        return 'state must be one of "published", "unpublished", "all"'
+    path = "/articles/me" if state == "published" else f"/articles/me/{state}"
+    articles = await fetch_from_api_authenticated(path)
+    return format_articles(articles[:10])
+
+@mcp.tool()
 async def get_user_info(username: str) -> str:
     """
     Get information about a Dev.to user
@@ -142,10 +170,10 @@ async def update_article(article_id: int, title: str = None, body_markdown: str 
         tags: New comma-separated list of tags (optional)
         published: Change publish status (optional)
     """
-    # First get the current article data
-    article = await fetch_from_api(f"/articles/{article_id}")
-    
-    # Prepare update data with only the fields that are provided
+    # Note: we don't pre-fetch the current article via the public /articles/{id}
+    # endpoint before updating — that endpoint 404s on drafts (they aren't public),
+    # and the value wasn't even used for anything below. The PUT itself accepts a
+    # partial update, so only the fields explicitly passed here are sent.
     update_data = {"article": {}}
     if title is not None:
         update_data["article"]["title"] = title
@@ -155,12 +183,14 @@ async def update_article(article_id: int, title: str = None, body_markdown: str 
         update_data["article"]["tags"] = tags
     if published is not None:
         update_data["article"]["published"] = published
-    
+
     async with httpx.AsyncClient() as client:
-        response = await client.put(f"{BASE_URL}/articles/{article_id}", json=update_data, timeout=10.0)
+        # The api-key header is required here: without it Dev.to rejects the PUT
+        # with 401, for drafts and published articles alike.
+        response = await client.put(f"{BASE_URL}/articles/{article_id}", json=update_data, headers=auth_headers(), timeout=10.0)
         response.raise_for_status()
         updated_article = response.json()
-    
+
     return f"Article updated successfully\nURL: {updated_article.get('url')}"
 
 # Helper formatting functions
