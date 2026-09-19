@@ -30,6 +30,22 @@ async def fetch_from_api_authenticated(path: str, params: dict = None) -> dict:
         response.raise_for_status()
         return response.json()
 
+async def fetch_own_article_by_id(article_id) -> dict | None:
+    """Look up one of your own articles (published or draft) by id.
+
+    Dev.to's /articles/{id} endpoint 404s on your own drafts even with the
+    API key attached -- there's no authenticated single-article endpoint for
+    them. The only way to fetch a draft's content is to list /articles/me
+    and /articles/me/unpublished (which do include body_markdown) and filter
+    by id client-side.
+    """
+    article_id = int(article_id)
+    for path in ("/articles/me", "/articles/me/unpublished"):
+        for article in await fetch_from_api_authenticated(path):
+            if article.get("id") == article_id:
+                return article
+    return None
+
 # Resources
 
 @mcp.tool()
@@ -52,8 +68,15 @@ async def get_articles_by_tag(tag: str) -> str:
 
 @mcp.tool()
 async def get_article_by_id(id: str) -> str:
-    """Get a specific article by ID from Dev.to"""
-    article = await fetch_from_api(f"/articles/{id}")
+    """Get a specific article by ID from Dev.to (including your own drafts)"""
+    try:
+        article = await fetch_from_api(f"/articles/{id}")
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code != 404:
+            raise
+        article = await fetch_own_article_by_id(id)
+        if article is None:
+            return f"Article {id} not found."
     return format_article_details(article)
 
 # Tools
@@ -80,12 +103,19 @@ async def search_articles(query: str, page: int = 1) -> str:
 @mcp.tool()
 async def get_article_details(article_id: int) -> str:
     """
-    Get detailed information about a specific article
-    
+    Get detailed information about a specific article (including your own drafts)
+
     Args:
         article_id: The ID of the article to retrieve
     """
-    article = await fetch_from_api(f"/articles/{article_id}")
+    try:
+        article = await fetch_from_api(f"/articles/{article_id}")
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code != 404:
+            raise
+        article = await fetch_own_article_by_id(article_id)
+        if article is None:
+            return f"Article {article_id} not found."
     return format_article_details(article)
 
 @mcp.tool()
