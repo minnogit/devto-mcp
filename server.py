@@ -225,19 +225,37 @@ async def update_article(article_id: int, title: str = None, body_markdown: str 
 
 # Helper formatting functions
 
+def article_tags_display(article: dict) -> str:
+    """Dev.to's API is inconsistent about which field carries the tags:
+    the single-article endpoint (/articles/{id}) returns `tags` as a list
+    (plus `tag_list` as a comma-joined string), while the list endpoints
+    (/articles/me, /articles/me/unpublished -- the fallback used for own
+    drafts, see fetch_own_article_by_id) return only `tag_list`, as a
+    list. Reading just `tags` silently shows blank tags for drafts, even
+    when they're set correctly on Dev.to. Normalize both into a single
+    comma-separated string."""
+    tags = article.get("tags")
+    if tags:
+        return ", ".join(tags) if isinstance(tags, list) else str(tags)
+    tag_list = article.get("tag_list")
+    if isinstance(tag_list, list):
+        return ", ".join(tag_list)
+    return str(tag_list) if tag_list else ""
+
+
 def format_articles(articles: list) -> str:
     """Format a list of articles for display"""
     if not articles:
         return "No articles found."
-    
+
     result = "# Dev.to Articles\n\n"
     for article in articles:
         title = article.get("title", "Untitled")
         author = article.get("user", {}).get("name", "Unknown Author")
         published_date = article.get("readable_publish_date", "Unknown date")
         article_id = article.get("id", "")
-        tags = article.get("tags", "")
-        
+        tags = article_tags_display(article)
+
         result += f"## {title}\n"
         result += f"ID: {article_id}\n"
         result += f"Author: {author}\n"
@@ -256,7 +274,7 @@ def format_article_details(article: dict) -> str:
     author = article.get("user", {}).get("name", "Unknown Author")
     published_date = article.get("readable_publish_date", "Unknown date")
     body = article.get("body_markdown", "No content available.")
-    tags = article.get("tags", "")
+    tags = article_tags_display(article)
     
     result = f"# {title}\n\n"
     result += f"Author: {author}\n"
