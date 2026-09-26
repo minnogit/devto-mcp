@@ -2,6 +2,8 @@
 
 This repository contains a Model Context Protocol server implementation for Dev.to that allows AI assistants to access and interact with Dev.to content.
 
+> **Note:** this is a personal fork of [Arindam200/devto-mcp](https://github.com/Arindam200/devto-mcp) with a few bug fixes (drafts weren't reachable — see [PR #4](https://github.com/Arindam200/devto-mcp/pull/4)) and one extra tool (`get_my_articles`, listed below). See [`TODO.md`](./TODO.md) for further improvements not implemented yet. Paired with [`devto-articles`](https://github.com/minnogit/devto-articles), a local Git-tracked archive of the same account's articles with a small web UI on top.
+
 <a href="https://glama.ai/mcp/servers/@Arindam200/devto-mcp">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@Arindam200/devto-mcp/badge" alt="Dev.to Server MCP server" />
 </a>
@@ -29,7 +31,7 @@ The Model Context Protocol (MCP) is a standard for enabling AI assistants to int
 
 1. Clone this repository
 ```bash
-git clone https://github.com/Arindam200/devto-mcp.git
+git clone https://github.com/minnogit/devto-mcp.git
 cd devto-mcp
 ```
 
@@ -82,10 +84,11 @@ The server provides the following tools:
 - `get_latest_articles()` - Get the latest articles from Dev.to
 - `get_top_articles()` - Get the most popular articles from Dev.to
 - `get_articles_by_tag(tag)` - Get articles by tag
-- `get_article_by_id(id)` - Get a specific article by ID
+- `get_article_by_id(id)` - Get a specific article by ID (including your own drafts)
 - `search_articles(query, page=1)` - Search for articles by keywords in title/description
-- `get_article_details(article_id)` - Get full content and metadata for a specific article
+- `get_article_details(article_id)` - Get full content and metadata for a specific article (including your own drafts)
 - `get_articles_by_username(username)` - Get articles written by a specific author
+- `get_my_articles(state="published")` - List your own articles, including drafts (`state`: `published`, `unpublished`, or `all`) — requires `DEV_TO_API_KEY`
 - `create_article(title, body_markdown, tags, published)` - Create and publish a new article
 - `update_article(article_id, title, body_markdown, tags, published)` - Update an existing article
 
