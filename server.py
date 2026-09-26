@@ -13,6 +13,14 @@ def auth_headers() -> dict:
     """Headers for endpoints that require the Dev.to API key (private/own-account data, writes)"""
     return {"Content-Type": "application/json", "api-key": os.getenv("DEV_TO_API_KEY", "")}
 
+def parse_tags(tags: str) -> list[str]:
+    """Dev.to's article-write endpoints (POST/PUT /articles) apply tags only when sent
+    as a JSON array under "tags"; a comma-separated string under the same key is accepted
+    with 200 OK but silently ignored, leaving the article with no tags. Verified directly
+    against the API (bypassing this server) after create_article/update_article both left
+    tag_list empty despite a comma string being passed."""
+    return [t.strip() for t in tags.split(",") if t.strip()]
+
 async def fetch_from_api(path: str, params: dict = None) -> dict:
     """Helper function to fetch data from Dev.to API (public endpoints)"""
     async with httpx.AsyncClient() as client:
@@ -176,7 +184,7 @@ async def create_article(title: str, body_markdown: str, tags: str = "", publish
             "title": title,
             "body_markdown": body_markdown,
             "published": published,
-            "tags": tags
+            "tags": parse_tags(tags)
         }
     }
     
@@ -210,7 +218,7 @@ async def update_article(article_id: int, title: str = None, body_markdown: str 
     if body_markdown is not None:
         update_data["article"]["body_markdown"] = body_markdown
     if tags is not None:
-        update_data["article"]["tags"] = tags
+        update_data["article"]["tags"] = parse_tags(tags)
     if published is not None:
         update_data["article"]["published"] = published
 
