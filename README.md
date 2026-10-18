@@ -89,8 +89,8 @@ The server provides the following tools:
 - `get_article_details(article_id)` - Get full content and metadata for a specific article (including your own drafts)
 - `get_articles_by_username(username)` - Get articles written by a specific author
 - `get_my_articles(state="published")` - List your own articles, including drafts (`state`: `published`, `unpublished`, or `all`) — requires `DEV_TO_API_KEY`
-- `create_article(title, body_markdown, tags, published)` - Create and publish a new article
-- `update_article(article_id, title, body_markdown, tags, published)` - Update an existing article
+- `create_article(title, body_markdown, tags, published, ai_disclosure_level)` - Create and publish a new article
+- `update_article(article_id, title, body_markdown, tags, published, ai_disclosure_level)` - Update an existing article (`ai_disclosure_level`: `not_disclosed`, `no_ai`, `some_ai` or `fully_autonomous`)
 
 ## Example Queries
 

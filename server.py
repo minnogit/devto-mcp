@@ -21,6 +21,16 @@ def parse_tags(tags: str) -> list[str]:
     tag_list empty despite a comma string being passed."""
     return [t.strip() for t in tags.split(",") if t.strip()]
 
+AI_DISCLOSURE_LEVELS = ("not_disclosed", "no_ai", "some_ai", "fully_autonomous")
+
+def check_ai_disclosure_level(level: str) -> str:
+    """The article-write endpoints (POST/PUT /articles) accept `ai_disclosure_level`
+    inside the "article" object (per the OpenAPI schema served at dev.to/api/docs).
+    The enum is validated here so a typo fails loudly instead of being sent blindly."""
+    if level not in AI_DISCLOSURE_LEVELS:
+        raise ValueError(f"ai_disclosure_level must be one of {', '.join(AI_DISCLOSURE_LEVELS)}, got {level!r}")
+    return level
+
 async def fetch_from_api(path: str, params: dict = None) -> dict:
     """Helper function to fetch data from Dev.to API (public endpoints)"""
     async with httpx.AsyncClient() as client:
@@ -169,7 +179,8 @@ async def get_user_info(username: str) -> str:
         raise e
 
 @mcp.tool()
-async def create_article(title: str, body_markdown: str, tags: str = "", published: bool = False) -> str:
+async def create_article(title: str, body_markdown: str, tags: str = "", published: bool = False,
+                         ai_disclosure_level: str = None) -> str:
     """
     Create and publish a new article on Dev.to
     
@@ -178,6 +189,8 @@ async def create_article(title: str, body_markdown: str, tags: str = "", publish
         body_markdown: The content of the article in markdown format
         tags: Comma-separated list of tags (e.g., "python,tutorial,webdev")
         published: Whether to publish immediately (True) or save as draft (False)
+        ai_disclosure_level: AI usage disclosure (optional): not_disclosed, no_ai, some_ai
+            ("AI-Assisted") or fully_autonomous
     """
     article_data = {
         "article": {
@@ -187,6 +200,8 @@ async def create_article(title: str, body_markdown: str, tags: str = "", publish
             "tags": parse_tags(tags)
         }
     }
+    if ai_disclosure_level is not None:
+        article_data["article"]["ai_disclosure_level"] = check_ai_disclosure_level(ai_disclosure_level)
     
     async with httpx.AsyncClient() as client:
         response = await client.post(f"{BASE_URL}/articles", json=article_data, headers={"Content-Type": "application/json", "api-key": os.getenv("DEV_TO_API_KEY")}, timeout=10.0)
@@ -197,7 +212,8 @@ async def create_article(title: str, body_markdown: str, tags: str = "", publish
 
 @mcp.tool()
 async def update_article(article_id: int, title: str = None, body_markdown: str = None, 
-                        tags: str = None, published: bool = None) -> str:
+                        tags: str = None, published: bool = None,
+                        ai_disclosure_level: str = None) -> str:
     """
     Update an existing article on Dev.to
     
@@ -207,6 +223,8 @@ async def update_article(article_id: int, title: str = None, body_markdown: str 
         body_markdown: New content in markdown format (optional)
         tags: New comma-separated list of tags (optional)
         published: Change publish status (optional)
+        ai_disclosure_level: AI usage disclosure (optional): not_disclosed, no_ai, some_ai
+            ("AI-Assisted") or fully_autonomous
     """
     # Note: we don't pre-fetch the current article via the public /articles/{id}
     # endpoint before updating — that endpoint 404s on drafts (they aren't public),
@@ -221,6 +239,8 @@ async def update_article(article_id: int, title: str = None, body_markdown: str 
         update_data["article"]["tags"] = parse_tags(tags)
     if published is not None:
         update_data["article"]["published"] = published
+    if ai_disclosure_level is not None:
+        update_data["article"]["ai_disclosure_level"] = check_ai_disclosure_level(ai_disclosure_level)
 
     async with httpx.AsyncClient() as client:
         # The api-key header is required here: without it Dev.to rejects the PUT
